@@ -1,0 +1,6 @@
+.vs
+jsrun.VC.*
+Debug
+Release
+x64
+*.vcxproj.user
