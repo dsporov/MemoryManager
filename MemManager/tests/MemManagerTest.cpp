@@ -38,9 +38,31 @@ namespace test {
 		typename TestFixture::MemManagerPtr memManager(new TypeParam(memory, sizeof(memory), sizeof(int)));
 
 		int* p = static_cast<int*>(memManager->allocate());
-		*p = 0xfefefefe;
+		*p = 0x12345678;
 
 		memManager->free(p);
+	}
+
+	TYPED_TEST(MemManagerTest, memoryAllocatedAndDeallocated_whenParamsCorrect) {
+		char memory[100];
+		typename TestFixture::MemManagerPtr memManager(new TypeParam(memory, sizeof(memory), sizeof(int)));
+
+		int* p1 = static_cast<int*>(memManager->allocate());
+		*p1 = 0x12345678;
+
+		int* p2 = static_cast<int*>(memManager->allocate());
+		*p2 = 0x12345678;
+
+		memManager->free(p1);
+		memManager->free(p2);
+
+		int* p3 = static_cast<int*>(memManager->allocate());
+		int* p4 = static_cast<int*>(memManager->allocate());
+		memManager->free(p3);
+
+		int* p5 = static_cast<int*>(memManager->allocate());
+		memManager->free(p5);
+		memManager->free(p4);
 	}
 
 	TYPED_TEST(MemManagerTest, errorThrown_whenFreeUnnalocatedBlock) {
@@ -78,4 +100,15 @@ namespace test {
 		memManager->allocate();
 		EXPECT_THROW(memManager->allocate(), OutOfMemoryException);
 	}
+
+#ifdef _DEBUG
+	TYPED_TEST(MemManagerTest, errorThrown_whenMemoryCorrupted) {
+		char memory[12];
+		typename TestFixture::MemManagerPtr memManager(new TypeParam(memory, sizeof(memory), sizeof(int)));
+
+		int* p = static_cast<int*>(memManager->allocate());
+		*(p+1) = 0x12345678;
+		EXPECT_THROW(memManager->free(p), CorruptedMemoryException);
+	}
+#endif
 }
