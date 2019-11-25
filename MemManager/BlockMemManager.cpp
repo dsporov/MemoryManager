@@ -8,23 +8,15 @@
 
 struct BlockMemManager::FreeBlock {
 private:
-	FreeBlock(unsigned numberOfBlocks, unsigned blocksTillNextFreeRegion)
-		: numberOfBlocks(numberOfBlocks)
-		, nextFreeRegionInBlocks(blocksTillNextFreeRegion)
+	FreeBlock(unsigned blocksTillNextFreeRegion)
+		: nextFreeRegionInBlocks(blocksTillNextFreeRegion)
 	{}
 
 public:
-	unsigned numberOfBlocks;
-
 	static const unsigned next_null = unsigned(-1);
 	unsigned nextFreeRegionInBlocks;
 
 	FreeBlock *nextFreeBlock(void *baseAddr, size_t blockSize) {
-		if (--numberOfBlocks > 0) {
-			void* addr = reinterpret_cast<char*>(this) + blockSize;
-			return new (addr)FreeBlock(numberOfBlocks, nextFreeRegionInBlocks);
-		}
-
 		if (next_null == nextFreeRegionInBlocks)
 			return nullptr;
 
@@ -32,8 +24,8 @@ public:
 		return reinterpret_cast<FreeBlock*>(nextFreeBlockAddr);
 	}
 
-	static FreeBlock *from(void *addr, unsigned numberOfBlocks) {
-		return new (addr)FreeBlock(numberOfBlocks, next_null);
+	static FreeBlock *from(void *addr) {
+		return new (addr)FreeBlock(next_null);
 	}
 
 	void *getAddr() {
@@ -117,11 +109,20 @@ public:
 BlockMemManager::BlockMemManager(void* mem, size_t size, size_t blockSize)
 	: MemManager(mem, size, blockSize)
 {
-	unsigned numOfBlocks = memSize() / getBlockSizeWithOverhead();
+	if (memSize() / getBlockSizeWithOverhead() > std::numeric_limits<unsigned>::max())
+		throw InternalError("Memory region is too large");
+
+	unsigned numOfBlocks = static_cast<unsigned>(memSize() / getBlockSizeWithOverhead());
 	if (0 == numOfBlocks)
 		throw IllegalArgumentException("Memory size is not enough to fit a single block");
 
-	firstFreeBlock_ = FreeBlock::from(mem, numOfBlocks);
+	firstFreeBlock_ = FreeBlock::from(mem);
+	FreeBlock *prevBlock = firstFreeBlock_;
+	for (unsigned i = 1; i < numOfBlocks; ++i) {
+		FreeBlock *block = FreeBlock::from(mem);
+		prevBlock->nextFreeRegionInBlocks = i;
+		prevBlock = block;
+	}
 }
 
 BlockMemManager::~BlockMemManager() {
@@ -141,7 +142,7 @@ void *BlockMemManager::allocate() {
 
 void BlockMemManager::free(void* p) {
 	if (nullptr == p)
-		throw NullPointerException();
+		throw NullPointerException("Pointer to a memory block cannot be null");
 
 	AllocatedBlock *block = AllocatedBlock::from(p);
 	if (!AllocatedBlock::isAllocatedBlock(block)) {
@@ -154,15 +155,15 @@ void BlockMemManager::free(void* p) {
 	char *blockAddr = reinterpret_cast<char*>(block);
 
 	if (nullptr == firstFreeBlock_) {
-		firstFreeBlock_ = FreeBlock::from(blockAddr, 1);
+		firstFreeBlock_ = FreeBlock::from(blockAddr);
 		return;
 	}
 
-	// todo: add merging of adjacent free blocks?
-
 	char *nextBlockAddr = reinterpret_cast<char*>(firstFreeBlock_);
-	firstFreeBlock_ = FreeBlock::from(blockAddr, 1);
-	firstFreeBlock_->nextFreeRegionInBlocks = (nextBlockAddr - static_cast<char*>(mem())) / getBlockSizeWithOverhead();
+	firstFreeBlock_ = FreeBlock::from(blockAddr);
+	firstFreeBlock_->nextFreeRegionInBlocks = static_cast<unsigned>(
+		(nextBlockAddr - static_cast<char*>(mem())) / getBlockSizeWithOverhead()
+	);
 }
 
 size_t BlockMemManager::getBlockSizeWithOverhead() const {
