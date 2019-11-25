@@ -12,7 +12,9 @@ public:
 
 private:
 	struct AllocatedBlock;
-	struct Block;
+	struct FreeBlock;
+
+	FreeBlock *firstFreeBlock_;
 
 	static const int BLOCK_START = 0xdeadbeef;
 #ifdef _DEBUG
