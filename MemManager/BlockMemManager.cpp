@@ -58,6 +58,8 @@ public:
 		*sentinelEndAddr = BLOCK_END;
 
 		std::memset(getDataAddr(), MEM_DEBUG_ALLOC, blockSize);
+#else
+		UNREFERENCED_PARAMETER(blockSize);
 #endif
 	}
 
@@ -65,6 +67,7 @@ public:
 #ifdef _DEBUG
 		std::memset(this, MEM_DEBUG_FREE, blockSize + getSizeOverhead());
 #else
+		UNREFERENCED_PARAMETER(blockSize);
 		sentinelStart = 0;
 #endif
 	}
@@ -86,6 +89,8 @@ public:
 		);
 		if (*sentinelEndAddr != BLOCK_END)
 			throw CorruptedMemoryException("Write operation was performed out of the memory block boundary");
+#else
+		UNREFERENCED_PARAMETER(blockSize);
 #endif
 	}
 
@@ -171,6 +176,7 @@ size_t BlockMemManager::getBlockSizeWithOverhead() const {
 }
 
 void BlockMemManager::checkIntegrity() const {
+	// todo: check for memory leaks?
 #ifdef _DEBUG
 	char* p = static_cast<char*>(mem());
 	char* memEnd = p + memSize();

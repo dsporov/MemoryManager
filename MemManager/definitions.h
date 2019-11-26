@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-#define interface struct
+#define UNREFERENCED_PARAMETER(param) (param)
 
 typedef std::invalid_argument NullPointerException;
 typedef std::invalid_argument IllegalArgumentException;
